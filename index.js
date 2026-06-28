@@ -1,27 +1,23 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-// GatewayIntentBits'e GuildPresences ve GuildMembers ekliyoruz.
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
 
 const token = process.env.TOKEN;
-const clientId = process.env.CLIENT_ID;
-const guildId = process.env.GUILD_ID;
 
 if (!token) {
     throw new Error('TOKEN bulunamadı! Lütfen .env dosyanızı veya ortam değişkenlerinizi kontrol edin.');
 }
 
-// Yeni intent'leri (yetkileri) client'a ekliyoruz.
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildPresences, // Kullanıcı durumlarını (status, activity) okumak için gerekli.
-        GatewayIntentBits.GuildMembers    // Üye bilgilerini çekmek ve DM göndermek için gerekli.
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
@@ -48,15 +44,21 @@ const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'
 
 for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
-    const event = require(filePath);
+    const eventOrHandler = require(filePath);
 
-    // Eğer dosya bir "-handler.js" ise, onu client ile başlat.
-    if (file.endsWith('-handler.js')) {
-        event(client);
-    } else if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args));
+    // Yüklenen modül bir fonksiyon ise (yeni handler sistemimiz için)
+    if (typeof eventOrHandler === 'function') {
+        eventOrHandler(client);
+    } 
+    // Yüklenen modül bir olay objesi ise (eski sistem için)
+    else if (eventOrHandler.name && typeof eventOrHandler.execute === 'function') {
+        if (eventOrHandler.once) {
+            client.once(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
+        } else {
+            client.on(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
+        }
     } else {
-        client.on(event.name, (...args) => event.execute(...args, client));
+      console.log(`[UYARI] ${filePath} dosyası geçerli bir olay dosyası olarak yüklenemedi.`);
     }
 }
 
