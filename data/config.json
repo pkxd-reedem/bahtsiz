@@ -1,0 +1,20 @@
+{
+    "1506223295190536355": {
+        "logKategoriId": "1507009447078264985",
+        "cezaLogKanalId": "1507009448215056546",
+        "mesajLogKanalId": "1507009449133477938",
+        "eklentiLogKanalId": "1507009449984917557",
+        "ticketLogKanalId": "1507009451297869904",
+        "gorusuruzKanalId": "1506223296033587333",
+        "hosgeldinKanalId": "1506223296033587333",
+        "ticketKonulari": [
+            {
+                "label": "bomba",
+                "value": "bomba",
+                "emoji": "👅"
+            }
+        ],
+        "ticketSorumluRolId": "1507002391772401715",
+        "ticketKategoriId": "1506223296033587331"
+    }
+}
