@@ -50,29 +50,32 @@ for (const folder of commandFolders) {
     }
 }
 
-// --- Geliştirilmiş Olay Yükleyici ---
+// --- En Kararlı Olay Yükleyici ---
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
 for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
-    const eventOrHandler = require(filePath);
-
-    // 1. Önce standart olay formatını kontrol et (nesne yapısı: { name, execute })
-    if (eventOrHandler.name && typeof eventOrHandler.execute === 'function') {
-        if (eventOrHandler.once) {
-            client.once(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
-        } else {
-            client.on(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
+    try {
+        const event = require(filePath);
+        // Standart olay formatı: { name, execute }
+        if (event.name && typeof event.execute === 'function') {
+            if (event.once) {
+                client.once(event.name, (...args) => event.execute(...args, client));
+            } else {
+                client.on(event.name, (...args) => event.execute(...args, client));
+            }
+        } 
+        // Yeni handler formatı: (client) => { ... }
+        else if (typeof event === 'function') {
+            event(client);
+        } 
+        // Diğer durumlar için uyarı ver (roleCreate gibi dosyalar artık bu bloğa düşmemeli)
+        else {
+            // console.log(`[BİLGİ] ${file} bir olay dinleyicisi değil, atlanıyor.`);
         }
-    } 
-    // 2. Eğer standart format değilse, fonksiyon olup olmadığını kontrol et (yeni handler yapısı)
-    else if (typeof eventOrHandler === 'function') {
-        eventOrHandler(client);
-    } 
-    // 3. İkisi de değilse, uyarı ver
-    else {
-      console.log(`[UYARI] ${filePath} dosyası geçerli bir olay formatında değil (ne nesne ne de fonksiyon).`);
+    } catch (error) {
+        console.error(`[HATA] ${file} olay dosyası yüklenirken bir sorun oluştu:`, error);
     }
 }
 // ----------------------------------
