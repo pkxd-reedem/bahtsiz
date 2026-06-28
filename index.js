@@ -56,16 +56,19 @@ const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'
 
 for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
-    const eventOrHandler = require(filePath);
+    const event = require(filePath);
 
-    if (typeof eventOrHandler === 'function') {
-        eventOrHandler(client);
-    } 
-    else if (eventOrHandler.name && typeof eventOrHandler.execute === 'function') {
-        if (eventOrHandler.once) {
-            client.once(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
+    if (file.endsWith('-handler.js')) {
+        if (typeof event === 'function') {
+            event(client);
         } else {
-            client.on(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
+            console.log(`[UYARI] Handler dosyası bir fonksiyon değil: ${filePath}`);
+        }
+    } else if (event.name && typeof event.execute === 'function') {
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(...args, client));
+        } else {
+            client.on(event.name, (...args) => event.execute(...args, client));
         }
     } else {
       console.log(`[UYARI] ${filePath} dosyası geçerli bir olay dosyası olarak yüklenemedi.`);
