@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const express = require('express'); // Express'i ekliyoruz
 require('dotenv').config();
 
 const token = process.env.TOKEN;
@@ -9,6 +10,17 @@ const token = process.env.TOKEN;
 if (!token) {
     throw new Error('TOKEN bulunamadı! Lütfen .env dosyanızı veya ortam değişkenlerinizi kontrol edin.');
 }
+
+// --- Render Port Sorunu için Web Sunucusu --- //
+const app = express();
+const port = process.env.PORT || 3000; // Render'ın verdiği portu veya 3000'i kullan
+app.get('/', (req, res) => {
+  res.send('Bahtısız Bot Aktif!');
+});
+app.listen(port, () => {
+  console.log(`Web sunucusu ${port} portunda başlatıldı.`);
+});
+// ----------------------------------------- //
 
 const client = new Client({
     intents: [
@@ -46,11 +58,9 @@ for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
     const eventOrHandler = require(filePath);
 
-    // Yüklenen modül bir fonksiyon ise (yeni handler sistemimiz için)
     if (typeof eventOrHandler === 'function') {
         eventOrHandler(client);
     } 
-    // Yüklenen modül bir olay objesi ise (eski sistem için)
     else if (eventOrHandler.name && typeof eventOrHandler.execute === 'function') {
         if (eventOrHandler.once) {
             client.once(eventOrHandler.name, (...args) => eventOrHandler.execute(...args, client));
