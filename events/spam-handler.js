@@ -1,7 +1,7 @@
 const { Collection, EmbedBuilder, PermissionsBitField } = require('discord.js');
 
 // --- Ayarlar ---
-const SPAM_SAYISI = 5; // Kaç mesajdan sonra spam sayılacağı
+const SPAM_SAYISI = 6; // Kaç mesajdan sonra spam sayılacağı
 const SPAM_SURESI = 5000; // Milisaniye cinsinden (5 saniye)
 const MUTE_SURESI = 10 * 60 * 1000; // Milisaniye cinsinden (10 dakika)
 // ---------------
@@ -12,7 +12,7 @@ module.exports = (client) => {
     client.on('messageCreate', async message => {
         // Bot mesajlarını, DM'leri veya yetkili kullanıcıları yoksay
         if (message.author.bot || !message.guild) return;
-        if (message.member && message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
+        if (message.member && message.member.permissons.has(PermissionsBitField.Flags.ManageMessages)) return;
 
         const simdi = Date.now();
 
