@@ -11,10 +11,8 @@ const kullaniciMesajlari = new Collection();
 module.exports = (client) => {
     client.on('messageCreate', async message => {
         // Bot mesajlarını, DM'leri veya yetkili kullanıcıları yoksay
-        if (message.author.bot || !message.guild || !message.member) return;
-        
-        // Düzeltilen Kısım: "permissons" -> "permissions" yapıldı
-        if (message.member.permissions && message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
+        if (message.author.bot || !message.guild) return;
+        if (message.member && message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
 
         const simdi = Date.now();
 
@@ -35,6 +33,16 @@ module.exports = (client) => {
         // Spam kontrolü
         if (kullaniciZamanDamgalari.size >= SPAM_SAYISI) {
             console.log(`[SPAM] ${message.author.tag} spam yaptığı için susturuluyor.`);
+
+            // Spam mesajlarını sil
+            const messagesToDelete = Array.from(kullaniciZamanDamgalari.keys());
+            message.channel.bulkDelete(messagesToDelete, true)
+                .then(deletedMessages => {
+                    console.log(`[SPAM] ${message.author.tag} kullanıcısına ait ${deletedMessages.size} spam mesajı silindi.`);
+                })
+                .catch(error => {
+                    console.error(`[HATA] Spam mesajları silinirken bir sorun oluştu:`, error);
+                });
             
             // Kullanıcının mesaj geçmişini temizle
             kullaniciMesajlari.delete(message.author.id);
@@ -54,7 +62,7 @@ module.exports = (client) => {
                 const logEmbed = new EmbedBuilder()
                     .setColor('Red')
                     .setTitle('🚨 Otomatik Spam Tespiti')
-                    .setDescription(`**${message.author.tag}** adlı kullanıcı, \`#${message.channel.name}\` kanalında spam yaptığı için otomatik olarak **10 dakika** susturuldu.`)
+                    .setDescription(`**${message.author.tag}** adlı kullanıcı, \`#${message.channel.name}\` kanalında spam yaptığı için otomatik olarak **10 dakika** susturuldu ve mesajları silindi.`)
                     .addFields(
                         { name: 'Kullanıcı', value: message.author.toString(), inline: true },
                         { name: 'Kanal', value: message.channel.toString(), inline: true }
@@ -75,16 +83,11 @@ module.exports = (client) => {
                     );
                 });
 
-                // Kullanıcının susturmasını kaldır (Güvenli hale getirildi)
+                // Kullanıcının susturmasını kaldır
                 setTimeout(async () => {
-                    try {
-                        const guncelUye = await message.guild.members.fetch(message.author.id).catch(() => null);
-                        if (guncelUye && guncelUye.roles.cache.has(muteRol.id)) {
-                            await guncelUye.roles.remove(muteRol);
-                            console.log(`[SPAM] ${message.author.tag} kullanıcısının susturması kaldırıldı.`);
-                        }
-                    } catch (err) {
-                        console.error("[HATA] Süre bitimi mute kaldırılırken hata oluştu:", err);
+                    if (message.member.roles.cache.has(muteRol.id)) {
+                        await message.member.roles.remove(muteRol);
+                        console.log(`[SPAM] ${message.author.tag} kullanıcısının susturması kaldırıldı.`);
                     }
                 }, MUTE_SURESI);
 
