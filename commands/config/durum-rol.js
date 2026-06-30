@@ -4,8 +4,8 @@ const db = require('croxydb');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('durum-rol')
-        .setDescription('Durumunda belirli bir metin yazanlara verilecek rolü ayarlar. (Sadece Sunucu Sahibi)')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .setDescription('Durumunda belirli bir metin yazanlara verilecek rolü ayarlar. (Yönetici Yetkisi Gerekir)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator) // Sadece Yönetici yetkisi olanlar kullanabilir
         .addRoleOption(option =>
             option.setName('rol')
                 .setDescription('Ayarlanacak rol.')
@@ -13,19 +13,13 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // This command can only be used by the guild owner.
-        if (interaction.user.id !== interaction.guild.ownerId) {
-            const embed = new EmbedBuilder()
-                .setColor('Red')
-                .setTitle('❌ Yetkin Yok!')
-                .setDescription('Bu komutu sadece sunucu sahibi kullanabilir.');
-            return interaction.reply({ embeds: [embed], ephemeral: true });
-        }
+        // Yetki kontrolü artık Discord tarafından otomatik olarak yapılıyor.
+        // Bu yüzden ek bir kontrole gerek yok.
 
         const role = interaction.options.getRole('rol');
         const botMember = await interaction.guild.members.fetch(interaction.client.user.id);
 
-        // Check if the bot's role is high enough to manage the selected role.
+        // Botun rolünün, yöneteceği rolden üstün olup olmadığını kontrol et.
         if (role.position >= botMember.roles.highest.position) {
             const embed = new EmbedBuilder()
                 .setColor('Red')
@@ -34,7 +28,7 @@ module.exports = {
             return interaction.reply({ embeds: [embed], ephemeral: true });
         }
         
-        // Save the role ID to the database for this guild.
+        // Rol ID'sini veritabanına kaydet.
         db.set(`statusRoleId_${interaction.guild.id}`, role.id);
 
         const embed = new EmbedBuilder()
