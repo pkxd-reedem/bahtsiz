@@ -11,8 +11,10 @@ const kullaniciMesajlari = new Collection();
 module.exports = (client) => {
     client.on('messageCreate', async message => {
         // Bot mesajlarını, DM'leri veya yetkili kullanıcıları yoksay
-        if (message.author.bot || !message.guild) return;
-        if (message.member && message.member.permissons.has(PermissionsBitField.Flags.ManageMessages)) return;
+        if (message.author.bot || !message.guild || !message.member) return;
+        
+        // Düzeltilen Kısım: "permissons" -> "permissions" yapıldı
+        if (message.member.permissions && message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
 
         const simdi = Date.now();
 
@@ -73,11 +75,16 @@ module.exports = (client) => {
                     );
                 });
 
-                // Kullanıcının susturmasını kaldır
+                // Kullanıcının susturmasını kaldır (Güvenli hale getirildi)
                 setTimeout(async () => {
-                    if (message.member.roles.cache.has(muteRol.id)) {
-                        await message.member.roles.remove(muteRol);
-                        console.log(`[SPAM] ${message.author.tag} kullanıcısının susturması kaldırıldı.`);
+                    try {
+                        const guncelUye = await message.guild.members.fetch(message.author.id).catch(() => null);
+                        if (guncelUye && guncelUye.roles.cache.has(muteRol.id)) {
+                            await guncelUye.roles.remove(muteRol);
+                            console.log(`[SPAM] ${message.author.tag} kullanıcısının susturması kaldırıldı.`);
+                        }
+                    } catch (err) {
+                        console.error("[HATA] Süre bitimi mute kaldırılırken hata oluştu:", err);
                     }
                 }, MUTE_SURESI);
 
