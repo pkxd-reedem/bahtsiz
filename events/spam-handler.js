@@ -4,65 +4,86 @@ const { Collection, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const SPAM_SAYISI = 6; // Kaç mesajdan sonra spam sayılacağı
 const SPAM_SURESI = 5000; // Milisaniye cinsinden (5 saniye)
 const MUTE_SURESI = 10 * 60 * 1000; // Milisaniye cinsinden (10 dakika)
+const MESAJ_SILME_SURESI = 30000; // Son kaç saniyelik mesajların silineceği (30 saniye)
 // ---------------
 
 const kullaniciMesajlari = new Collection();
 
 module.exports = (client) => {
     client.on('messageCreate', async message => {
-        // Bot mesajlarını, DM'leri veya yetkili kullanıcıları yoksay
         if (message.author.bot || !message.guild) return;
         if (message.member && message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
 
         const simdi = Date.now();
-
-        // Kullanıcının mesaj geçmişini al veya oluştur
         if (!kullaniciMesajlari.has(message.author.id)) {
             kullaniciMesajlari.set(message.author.id, new Collection());
         }
-
         const kullaniciZamanDamgalari = kullaniciMesajlari.get(message.author.id);
         kullaniciZamanDamgalari.set(message.id, simdi);
 
-        // Belirtilen süreden eski mesajları temizle
         const eskiMesajlar = kullaniciZamanDamgalari.filter(zaman => simdi - zaman > SPAM_SURESI);
         for (const id of eskiMesajlar.keys()) {
             kullaniciZamanDamgalari.delete(id);
         }
 
-        // Spam kontrolü
         if (kullaniciZamanDamgalari.size >= SPAM_SAYISI) {
-            console.log(`[SPAM] ${message.author.tag} spam yaptığı için susturuluyor.`);
-
-            // Spam mesajlarını sil
-            const messagesToDelete = Array.from(kullaniciZamanDamgalari.keys());
-            message.channel.bulkDelete(messagesToDelete, true)
-                .then(deletedMessages => {
-                    console.log(`[SPAM] ${message.author.tag} kullanıcısına ait ${deletedMessages.size} spam mesajı silindi.`);
-                })
-                .catch(error => {
-                    console.error(`[HATA] Spam mesajları silinirken bir sorun oluştu:`, error);
-                });
+            console.log(`[SPAM] ${message.author.tag} spam yaptığı için susturma işlemi başlatıldı.`);
             
-            // Kullanıcının mesaj geçmişini temizle
+            // Mesajları silme işlemi
+            try {
+                const fetchedMessages = await message.channel.messages.fetch({ limit: 100 });
+                const userMessagesToDelete = fetchedMessages.filter(m => 
+                    m.author.id === message.author.id && 
+                    (simdi - m.createdTimestamp) < MESAJ_SILME_SURESI
+                );
+
+                if (userMessagesToDelete.size > 0) {
+                    await message.channel.bulkDelete(userMessagesToDelete, true);
+                    console.log(`[SPAM] ${message.author.tag} kullanıcısına ait ${userMessagesToDelete.size} mesaj silindi.`);
+                }
+            } catch (error) {
+                console.error('[HATA] Mesajlar silinirken bir hata oluştu. Muhtemelen "Mesajları Yönet" yetkim yok veya 14 günden eski mesajları silmeye çalışıyorum.');
+            }
+
+            // Spam listesini temizle
             kullaniciMesajlari.delete(message.author.id);
 
-            // Mute rolünü bul veya hata ver
+            // Mute rolünü bul
             const muteRol = message.guild.roles.cache.find(rol => rol.name.toLowerCase() === 'muted' || rol.name.toLowerCase() === 'susturulmuş');
             if (!muteRol) {
-                console.error(`[HATA] Sunucuda 'Muted' veya 'Susturulmuş' adında bir rol bulunamadı.`);
+                console.error("[HATA] Sunucuda 'Muted' veya 'Susturulmuş' adında bir rol bulunamadı. Lütfen bu isimde bir rol oluşturun.");
                 return;
             }
 
+            // ---- Mute İşlemi ve Detaylı Kontrol ----
             try {
+                // 1. Botun yetkisi var mı?
+                if (!message.guild.members.me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+                    console.error('[HATA] Botun "Rolleri Yönet" yetkisi yok. Lütfen bota bu yetkiyi verin.');
+                    return;
+                }
+
+                // 2. Rol hiyerarşisi uygun mu?
+                if (muteRol.position >= message.guild.members.me.roles.highest.position) {
+                    console.error(`[HATA] 'Muted' rolü (${muteRol.name}) botun en yüksek rolünden (${message.guild.members.me.roles.highest.name}) daha yüksek veya aynı seviyede. Bot bu rolü veremez. Lütfen botun rolünü 'Muted' rolünün üzerine taşıyın.`);
+                    return;
+                }
+                
+                // 3. Kullanıcı zaten muteli mi diye kontrol et
+                if(message.member.roles.cache.has(muteRol.id)) {
+                    console.log(`[BİLGİ] ${message.author.tag} zaten susturulmuş.`);
+                    return;
+                }
+
                 // Kullanıcıyı sustur
                 await message.member.roles.add(muteRol);
-                
-                // Bilgilendirme mesajı oluştur
+                console.log(`[BAŞARI] ${message.author.tag} başarıyla susturuldu.`);
+
+                // Bilgilendirme mesajı
                 const logEmbed = new EmbedBuilder()
                     .setColor('Red')
                     .setTitle('🚨 Otomatik Spam Tespiti')
-                    .setDescription(`**${message.author.tag}** adlı kullanıcı, \`#${message.channel.name}\` kanalında spam yaptığı için otomatik olarak **10 dakika** susturuldu ve mesajları silindi.`)
+                    .setDescription(`**${message.author.tag}** adlı kullanıcı, spam yaptığı için **10 dakika** susturuldu ve son mesajları silindi.`)
                     .addFields(
                         { name: 'Kullanıcı', value: message.author.toString(), inline: true },
                         { name: 'Kanal', value: message.channel.toString(), inline: true }
@@ -70,29 +91,21 @@ module.exports = (client) => {
                     .setTimestamp()
                     .setFooter({ text: 'Otomatik Koruma Sistemi' });
 
-                // Kanala bilgilendirme mesajı gönder
                 message.channel.send({ embeds: [logEmbed] }).then(msg => {
-                    setTimeout(() => msg.delete().catch(console.error), 15000); // 15 saniye sonra sil
+                    setTimeout(() => msg.delete().catch(console.error), 15000);
                 }).catch(console.error);
 
-                // Yönetici yetkisi olanları bul ve DM gönder
-                const yoneticiler = message.guild.members.cache.filter(m => m.permissions.has(PermissionsBitField.Flags.Administrator));
-                yoneticiler.forEach(yonetici => {
-                    yonetici.send({ embeds: [logEmbed] }).catch(() => 
-                        console.log(`[UYARI] ${yonetici.user.tag} kullanıcısına DM gönderilemedi.`)
-                    );
-                });
-
-                // Kullanıcının susturmasını kaldır
+                // Mute süresini başlat
                 setTimeout(async () => {
-                    if (message.member.roles.cache.has(muteRol.id)) {
-                        await message.member.roles.remove(muteRol);
+                    // Tekrar kontrol et, belki mute manuel kaldırılmıştır
+                    if (message.member && message.member.roles.cache.has(muteRol.id)) {
+                        await message.member.roles.remove(muteRol).catch(console.error);
                         console.log(`[SPAM] ${message.author.tag} kullanıcısının susturması kaldırıldı.`);
                     }
                 }, MUTE_SURESI);
 
             } catch (error) {
-                console.error(`[HATA] Kullanıcı susturulurken bir sorun oluştu:`, error);
+                console.error(`[HATA] Kullanıcı susturulurken beklenmedik bir hata oluştu:`, error);
             }
         }
     });
